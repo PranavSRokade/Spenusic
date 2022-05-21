@@ -10,11 +10,13 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.provider.OpenableColumns;
 import android.view.Menu;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import com.karumi.dexter.Dexter;
 import com.karumi.dexter.PermissionToken;
@@ -27,6 +29,8 @@ import java.util.ArrayList;
 public class MainActivity extends AppCompatActivity {
     ListView listView;
     ArrayAdapter<String> adapter;
+    ArrayList<String> songs = new ArrayList<>();
+    ArrayList<Music> mySongs = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,33 +38,57 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         listView = findViewById(R.id.listView);
+
         Dexter.withContext(this).withPermission(Manifest.permission.READ_EXTERNAL_STORAGE).withListener(new PermissionListener() {
             @Override
             public void onPermissionGranted(PermissionGrantedResponse permissionGrantedResponse) {
-                ArrayList<Music> mySongs = getMusic(MainActivity.this);
-                ArrayList<String> songs = getSongs(mySongs);
+                Intent externalIntent = getIntent();
+                if(!externalIntent.hasCategory("android.intent.category.LAUNCHER") && externalIntent.getData().getScheme().equals("content")){
+                    Uri uri = externalIntent.getData();
+                    Cursor cursor = getContentResolver().query(uri, null, null, null, null);
 
-                adapter = new ArrayAdapter(MainActivity.this, android.R.layout.simple_list_item_1, songs);
+                    int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
 
-                listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                    @Override
-                    public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-                        String updated = listView.getItemAtPosition(i).toString();
+                    cursor.moveToFirst();
+                    String song = cursor.getString(nameIndex);
 
-                        for(int x = 0; x < mySongs.size(); x++){
-                            if(mySongs.get(x).name.equals(updated)){
-                                i = x;
+                    mySongs.add(new Music(song, externalIntent.getData().getPath()));
+                    songs.add(song);
+
+                    Intent intent = new Intent(MainActivity.this, PlaySong.class);
+                    intent.putExtra("songList", mySongs);
+                    intent.putExtra("position", 0);
+                    intent.putExtra("name", song);
+
+                    startActivity(intent);
+                    finish();
+                }
+                else {
+                    mySongs = getMusic(MainActivity.this);
+                    songs = getSongs(mySongs);
+
+                    adapter = new ArrayAdapter(MainActivity.this, android.R.layout.simple_list_item_1, songs);
+
+                    listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                        @Override
+                        public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                            String updated = listView.getItemAtPosition(i).toString();
+
+                            for(int x = 0; x < mySongs.size(); x++){
+                                if(mySongs.get(x).name.equals(updated)){
+                                    i = x;
+                                }
                             }
+
+                            Intent intent = new Intent(MainActivity.this, PlaySong.class);
+                            intent.putExtra("songList", mySongs);
+                            intent.putExtra("position", i);
+                            intent.putExtra("name", mySongs.get(i).name);
+
+                            startActivity(intent);
                         }
-
-                        Intent intent = new Intent(MainActivity.this, PlaySong.class);
-                        intent.putExtra("songList", mySongs);
-                        intent.putExtra("position", i);
-                        intent.putExtra("name", mySongs.get(i).name);
-
-                        startActivity(intent);
-                    }
-                });
+                    });
+                }
 
                 listView.setAdapter(adapter);
             }
